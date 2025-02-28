@@ -146,10 +146,10 @@ elif not st.session_state.finished:
         "1. **A context** describing a problem, specific settings, goal, etc.\n"
         "2. **A query** asking for a suggestion to help with the context.\n"
         "3. **A list of AI-generated suggestions**.\n\n"
-        "For each suggestion, assign a score of **Low** or **Medium** or **High** in the following criteria: \n"
-        "- **Scientific Soundness**: Does it make sense scientifically?\n"
-        "- **Novelty**: Does it propose an idea you hadn't considered before?\n"
-        "- **Specificity**: Is the suggestion clear and specific enough to be actionable?"
+        "For each suggestion, assign a score of **Low** | **Medium** | **High** in the following criteria: \n"
+        "- 🧩 **Scientific Soundness** – Does it make sense scientifically?\n"
+        "- 💡 **Novelty** – Is it an idea you hadn’t considered before?\n"
+        "- 🎯 **Specificity** – Is it clear and actionable?"
     )
 
     anchor = example['anchor']
@@ -168,19 +168,20 @@ elif not st.session_state.finished:
                        'annotator': st.session_state.user_name,
                        'id': example['id']}
         for i, baseline in enumerate(baselines, start=1):
-            st.markdown(f"**{example[baseline].capitalize()}** [🐞-{baseline[0]}]")
+            st.markdown(f"**{i}.  {example[baseline].capitalize()}**")
+            # st.markdown(f"**{example[baseline].capitalize()}** [🐞-{baseline[0]}]")
 
-            cols = st.columns(3)  # Compact layout
-            annotations[f'{baseline}_sci_sense'] = cols[0].radio(
-                "Scientific Sense", ["Low", "Medium", "High"],
+            cols = st.columns(7)  # Compact layout
+            annotations[f'{baseline}_sci_sense'] = cols[1].radio(
+                "🧩 **Sound?**", ["Low", "Med", "High"],
                 horizontal=False, key=f'sci_{current_example}_{baseline}'
             )
-            annotations[f'{baseline}_og'] = cols[1].radio(
-                "Novelty", ["Low", "Medium", "High"],
+            annotations[f'{baseline}_og'] = cols[3].radio(
+                "💡 **Novel?**", ["Low", "Med", "High"],
                 horizontal=False, key=f'og_{current_example}_{baseline}'
             )
-            annotations[f'{baseline}_specific'] = cols[2].radio(
-                "Specificity", ["Low", "Medium", "High"],
+            annotations[f'{baseline}_specific'] = cols[5].radio(
+                "🎯 **Specific?**", ["Low", "Med", "High"],
                 horizontal=False, key=f'specific_{current_example}_{baseline}'
             )
 
