@@ -1,0 +1,213 @@
+import streamlit as st
+import pandas as pd
+import random
+import re
+
+import requests
+import hashlib
+
+# File paths
+data_path = "results_inspo.csv"
+
+# Load data
+examples = pd.read_csv(data_path)
+max_annotations_per_user = 3
+
+BASE_ID = "appkIcAOOsCPyyrmU"
+TABLE_NAME = "Table%201"
+airtable_key_path = "airtable_key"
+API_KEY = open(airtable_key_path, "r").read().strip()
+
+
+def build_query(anchor_text, relation):
+    if relation == 'combination':
+        query = f"What could we blend with **{anchor_text}** to address the context?"
+    else:
+        anchor_text = anchor_text.capitalize()
+        query = f"What would be a good source of inspiration for **{anchor_text}**?"
+
+    return query
+
+
+def send_to_airtable(df):
+    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    # Chunk DataFrame into groups of 10
+    chunk_size = 10
+    for idx in range(0, len(df), chunk_size):
+        chunk = df.iloc[idx:idx + chunk_size]
+        records = [
+            {
+                "fields": row.to_dict()} for _, row in chunk.iterrows()
+        ]
+
+        # Send POST request to Airtable
+        response = requests.post(url, json={"records": records}, headers=headers)
+
+        # Check for errors
+        if response.status_code == 200:
+            print(f"Batch {idx // chunk_size + 1} uploaded successfully.")
+        else:
+            print(f"Error uploading batch {idx // chunk_size + 1}: {response.json()}")
+
+
+def get_user_data_chunk(email, df, max_annotations_per_user):
+    # Create a hash from the email
+    hash_value = int(hashlib.sha256(email.encode()).hexdigest(), 16)
+
+    # Determine the starting index for this user's chunk
+    start_idx = (hash_value % len(df)) // max_annotations_per_user * max_annotations_per_user
+
+    # Get the user's specific chunk
+    user_chunk = df.iloc[start_idx:start_idx + max_annotations_per_user]
+
+    return user_chunk
+
+
+# Initialize session state variables
+if "email_entered" not in st.session_state:
+    st.session_state.email_entered = False
+if "user_email" not in st.session_state:
+    st.session_state.user_email = ""
+if "user_name" not in st.session_state:
+    st.session_state.user_name = ""
+if "data_chunk" not in st.session_state:
+    st.session_state.data_chunk = None
+if 'save_path' not in st.session_state:
+    st.session_state.save_path = ""
+if "current_example" not in st.session_state:
+    st.session_state.current_example = 0
+if "annotations" not in st.session_state:
+    st.session_state.annotations = []
+if "shuffled_baselines" not in st.session_state:
+    st.session_state.shuffled_baselines = {}
+if "finished" not in st.session_state:
+    st.session_state.finished = False
+
+# Email entry screen
+if not st.session_state.email_entered:
+    # Page title
+    st.markdown("<h1 style='text-align: center;'>Welcome 🤗</h1>", unsafe_allow_html=True)
+    st.write("<h3 style='text-align: center;'>Thank you for contributing to our research!</h3>", unsafe_allow_html=True)
+    st.markdown(
+        "This platform is designed to collect **annotations on the helpfulness of AI-generated ideas** for our study.")
+
+    # Add some spacing
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Center the form
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.write("<h6 style='text-align: left;'>Enter your email to begin:</h6>", unsafe_allow_html=True)
+        with st.form(key="email_form"):
+            email = st.text_input("**Email Address**", key="email_input", placeholder="Enter your email...")
+
+
+            def is_valid_email(email):
+                return bool(re.match(r"^[\w\.-]+@[\w\.-]+\.\w{2,}$", email))  # Regex validation
+
+
+            submit = st.form_submit_button("🚀 Submit")
+
+            if submit:
+                if is_valid_email(email):
+                    username = email.split("@")[0]
+                    st.session_state.email_entered = True
+                    st.session_state.user_email = email
+                    st.session_state.user_name = username
+
+                    # Fetch user-specific data
+                    st.session_state.data_chunk = get_user_data_chunk(email, examples, max_annotations_per_user)
+
+                    st.success(f"✅ Welcome, {username}! Redirecting you now...")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ Please enter a valid email (e.g., user@example.com).")
+
+elif not st.session_state.finished:
+    current_example = st.session_state.current_example
+    example = st.session_state.data_chunk.iloc[current_example]
+
+    if current_example not in st.session_state.shuffled_baselines:
+        baselines = ['zero_shot', 'random', 'finetuned']
+        random.shuffle(baselines)
+        st.session_state.shuffled_baselines[current_example] = baselines
+    else:
+        baselines = st.session_state.shuffled_baselines[current_example]
+    st.subheader("Task: Evaluating AI-Generated Ideas", divider="blue")
+    st.info(
+        "##### ℹ️ Instructions\n\n"
+        "Your goal is to assess the helpfulness of AI-generated suggestions in assisting users with writing paper abstracts.\n\n"
+        "You will be provided with:\n"
+        "1. **A context** describing a problem, specific settings, goal, etc.\n"
+        "2. **A query** asking for a suggestion to help with the context.\n"
+        "3. **A list of AI-generated suggestions**.\n\n"
+        "For each suggestion, assign a score of **Low** or **Medium** or **High** in the following criteria: \n"
+        "- **Scientific Soundness**: Does it make sense scientifically?\n"
+        "- **Novelty**: Does it propose an idea you hadn't considered before?\n"
+        "- **Specificity**: Is the suggestion clear and specific enough to be actionable?"
+    )
+
+    anchor = example['anchor']
+    relation = example['relation']
+    context = example['context']
+    query_text = build_query(anchor, relation)
+
+    with st.form(key=f'form_{current_example}'):
+        st.markdown('##### Context')
+        st.markdown(f"{context[0].capitalize() + context[1:]}")
+        st.markdown("##### Query")
+        st.markdown(f"{query_text[0].capitalize() + query_text[1:]}")
+        st.markdown('##### Suggestions')
+        annotations = {'query_text_context': context, 'query_text_idea': query_text,
+                       'gold': example['positive'],
+                       'annotator': st.session_state.user_name,
+                       'id': example['id']}
+        for i, baseline in enumerate(baselines, start=1):
+            st.markdown(f"**{example[baseline].capitalize()}** [🐞-{baseline[0]}]")
+
+            cols = st.columns(3)  # Compact layout
+            annotations[f'{baseline}_sci_sense'] = cols[0].radio(
+                "Scientific Sense", ["Low", "Medium", "High"],
+                horizontal=False, key=f'sci_{current_example}_{baseline}'
+            )
+            annotations[f'{baseline}_og'] = cols[1].radio(
+                "Novelty", ["Low", "Medium", "High"],
+                horizontal=False, key=f'og_{current_example}_{baseline}'
+            )
+            annotations[f'{baseline}_specific'] = cols[2].radio(
+                "Specificity", ["Low", "Medium", "High"],
+                horizontal=False, key=f'specific_{current_example}_{baseline}'
+            )
+
+            annotations[f'{baseline}_suggestion'] = example[baseline]
+            annotations[f'{baseline}_k'] = str(example['k'])
+
+        submitted = st.form_submit_button("Submit & Proceed ➡️")
+        if submitted:
+            st.session_state.annotations.append(annotations)
+            st.session_state.current_example += 1 if current_example < len(st.session_state.data_chunk) - 1 else 0
+            st.session_state.finished = current_example >= len(st.session_state.data_chunk) - 1
+            st.rerun()
+
+    st.progress((current_example + 1) / len(st.session_state.data_chunk))
+    st.markdown(f"Task {current_example + 1} of {len(st.session_state.data_chunk)}")
+
+else:
+    st.markdown("<h2 style='text-align: center;'>🎉 You have completed all your tasks! 🎉</h2>", unsafe_allow_html=True)
+
+    # Center the thank-you message
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        st.markdown("<h3 style='text-align: center;'>Thank you for your contribution! 🥹</h3>", unsafe_allow_html=True)
+
+    # Fetch user annotations
+    annotations_df = pd.DataFrame(st.session_state.get("annotations", []))
+
+    st.divider()
+    st.balloons()  # 🎈 Confetti effect!
+    send_to_airtable(annotations_df)
