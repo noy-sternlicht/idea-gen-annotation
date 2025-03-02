@@ -6,8 +6,6 @@ import json
 
 from pyairtable import Api
 
-users_path = 'users.json'
-users = json.load(open(users_path))['users']
 
 ANNOTATION_BASE_ID = "appkIcAOOsCPyyrmU"
 ANNOTATIONS_TABLE_NAME = "tblx7STGTFWCMhrvg"
