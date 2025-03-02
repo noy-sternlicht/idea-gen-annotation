@@ -2,21 +2,22 @@ import streamlit as st
 import pandas as pd
 import random
 import re
+import json
 
-import requests
-import hashlib
+from pyairtable import Api
 
-# File paths
-data_path = "results_inspo.csv"
+users_path = 'users.json'
+users = json.load(open(users_path))['users']
 
-# Load data
-examples = pd.read_csv(data_path)
-max_annotations_per_user = 3
-
-BASE_ID = "appkIcAOOsCPyyrmU"
-TABLE_NAME = "Table%201"
+ANNOTATION_BASE_ID = "appkIcAOOsCPyyrmU"
+ANNOTATIONS_TABLE_NAME = "tblx7STGTFWCMhrvg"
 airtable_key_path = "airtable_key"
 API_KEY = open(airtable_key_path, "r").read().strip()
+
+api = Api(API_KEY)
+annotations_table = api.table(ANNOTATION_BASE_ID, ANNOTATIONS_TABLE_NAME)
+batches_table = api.table('appfwulPjVHbYVUDt', 'tblsK9MqSSVgjzy97')
+baselines = ['random', 'ours', 'gpt-4o', 'sciIE', 'mpnet_zero']
 
 
 def build_query(anchor_text, relation):
@@ -30,42 +31,62 @@ def build_query(anchor_text, relation):
 
 
 def send_to_airtable(df):
-    url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_NAME}"
-    headers = {
-        "Authorization": f"Bearer {API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    # Chunk DataFrame into groups of 10
+    batch_id = st.session_state.batch_id
     chunk_size = 10
     for idx in range(0, len(df), chunk_size):
         chunk = df.iloc[idx:idx + chunk_size]
-        records = [
-            {
-                "fields": row.to_dict()} for _, row in chunk.iterrows()
-        ]
+        records = []
+        for _, row in chunk.iterrows():
+            record = {
+                "example_id": row['id'],
+                "batch_id": batch_id,
+                "context": row['context'],
+                "query": row['query'],
+                "gold": row['gold'],
+                "annotator": row['annotator'],
+            }
+            baselines_results = {}
+            for curr_baseline in baselines:
+                baselines_results[curr_baseline] = {
+                    "suggestion": row[f'{curr_baseline}_suggestion'],
+                    "sci_sense": row[f'{curr_baseline}_sci_sense'],
+                    "og": row[f'{curr_baseline}_og'],
+                    "specific": row[f'{curr_baseline}_specific'],
+                }
+            record['baselines_results'] = json.dumps(baselines_results)
+            records.append(record)
+        annotations_table.batch_create(records)
 
-        # Send POST request to Airtable
-        response = requests.post(url, json={"records": records}, headers=headers)
+    records = batches_table.all(formula=f"{{batch_id}} = '{batch_id}'")
+    if records:
+        record_id = records[0]['id']
+        batches_table.update(record_id, {"status": "done"})
+        print(f"Batch {batch_id} marked as Completed.")
+    else:
+        print(f"Batch {batch_id} not found.")
 
-        # Check for errors
-        if response.status_code == 200:
-            print(f"Batch {idx // chunk_size + 1} uploaded successfully.")
-        else:
-            print(f"Error uploading batch {idx // chunk_size + 1}: {response.json()}")
 
+def get_user_data_chunk(user_email):
+    records = batches_table.all(formula="{status} = 'not_started'")
+    if records:
+        first_batch = records[0]
+        record_id = first_batch['id']
+        batch_path = first_batch['fields'].get("file_path")
+        batch_id = first_batch['fields'].get("batch_id")
 
-def get_user_data_chunk(email, df, max_annotations_per_user):
-    # Create a hash from the email
-    hash_value = int(hashlib.sha256(email.encode()).hexdigest(), 16)
+        batches_table.update(record_id, {
+            "annotator": user_email,
+            "status": "in_progress"
+        })
 
-    # Determine the starting index for this user's chunk
-    start_idx = (hash_value % len(df)) // max_annotations_per_user * max_annotations_per_user
+        print(f"Assigned batch {batch_id} to {user_email}.")
+        batch = pd.read_csv(batch_path)
+        st.session_state.batch_id = batch_id
+        return batch
 
-    # Get the user's specific chunk
-    user_chunk = df.iloc[start_idx:start_idx + max_annotations_per_user]
-
-    return user_chunk
+    else:
+        print("No available batches to assign.")
+        return None
 
 
 # Initialize session state variables
@@ -77,6 +98,8 @@ if "user_name" not in st.session_state:
     st.session_state.user_name = ""
 if "data_chunk" not in st.session_state:
     st.session_state.data_chunk = None
+if "batch_id" not in st.session_state:
+    st.session_state.batch_id = ""
 if 'save_path' not in st.session_state:
     st.session_state.save_path = ""
 if "current_example" not in st.session_state:
@@ -121,7 +144,9 @@ if not st.session_state.email_entered:
                     st.session_state.user_name = username
 
                     # Fetch user-specific data
-                    st.session_state.data_chunk = get_user_data_chunk(email, examples, max_annotations_per_user)
+                    st.session_state.data_chunk = get_user_data_chunk(email)
+                    if st.session_state.data_chunk.empty:
+                        st.warning("⚠️ No tasks available. Please contact the study organizer.")
 
                     st.success(f"✅ Welcome, {username}! Redirecting you now...")
                     st.rerun()
@@ -133,7 +158,6 @@ elif not st.session_state.finished:
     example = st.session_state.data_chunk.iloc[current_example]
 
     if current_example not in st.session_state.shuffled_baselines:
-        baselines = ['zero_shot', 'random', 'finetuned']
         random.shuffle(baselines)
         st.session_state.shuffled_baselines[current_example] = baselines
     else:
@@ -163,13 +187,13 @@ elif not st.session_state.finished:
         st.markdown("##### Query")
         st.markdown(f"{query_text[0].capitalize() + query_text[1:]}")
         st.markdown('##### Suggestions')
-        annotations = {'query_text_context': context, 'query_text_idea': query_text,
+        annotations = {'context': context, 'query': query_text,
                        'gold': example['positive'],
-                       'annotator': st.session_state.user_name,
+                       'annotator': st.session_state.user_email,
                        'id': example['id']}
         for i, baseline in enumerate(baselines, start=1):
-            st.markdown(f"**{i}.  {example[baseline].capitalize()}**")
-            # st.markdown(f"**{example[baseline].capitalize()}** [🐞-{baseline[0]}]")
+            # st.markdown(f"**{i}.  {example[baseline].capitalize()}**")
+            st.markdown(f"**{i}.  {example[baseline].capitalize()}** [🐞-{baseline}]")
 
             cols = st.columns(7)  # Compact layout
             annotations[f'{baseline}_sci_sense'] = cols[1].radio(
