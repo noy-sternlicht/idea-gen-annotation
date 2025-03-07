@@ -47,6 +47,7 @@ def send_to_airtable(df):
             for curr_baseline in baselines:
                 baselines_results[curr_baseline] = {
                     "suggestion": row[f'{curr_baseline}_suggestion'],
+                    'k': row[f'{curr_baseline}_k'],
                     "sci_sense": row[f'{curr_baseline}_sci_sense'],
                     "og": row[f'{curr_baseline}_og'],
                     "specific": row[f'{curr_baseline}_specific'],
