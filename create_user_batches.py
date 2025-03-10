@@ -51,7 +51,7 @@ def main():
     batch_dir = 'batches'
     os.makedirs(batch_dir)
 
-    batch_size = 3
+    batch_size = 10
     data_batches = divide_data_to_batches(data_path, batch_size)
     for i, batch in enumerate(data_batches):
         batch_id = str(uuid.uuid4())
