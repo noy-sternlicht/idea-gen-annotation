@@ -191,8 +191,8 @@ elif not st.session_state.finished:
                        'annotator': st.session_state.user_email,
                        'id': example['id']}
         for i, baseline in enumerate(baselines, start=1):
-            # st.markdown(f"**{i}.  {example[baseline].capitalize()}**")
-            st.markdown(f"**{i}.  {example[baseline].capitalize()}** [🐞-{baseline}]")
+            st.markdown(f"**{i}.  {example[baseline].capitalize()}**")
+            # st.markdown(f"**{i}.  {example[baseline].capitalize()}** [🐞-{baseline}]")
 
             cols = st.columns(7)  # Compact layout
             annotations[f'{baseline}_sci_sense'] = cols[1].radio(
