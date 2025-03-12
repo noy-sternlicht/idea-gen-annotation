@@ -37,12 +37,15 @@ table = api.table(BASE_ID, TABLE_NAME)
 
 def divide_data_to_batches(data_path, batch_size):
     data = pd.read_csv(data_path)
+    data = data[data.apply(lambda x: 'cs.cl' in x['arxiv_categories'], axis=1)]
     data = data.sample(frac=1)
     nr_batches = len(data) // batch_size
     data_batches = []
     for i in range(nr_batches):
         batch = data.iloc[i * batch_size: (i + 1) * batch_size]
         data_batches.append(batch)
+
+    print(f"Divided data to {nr_batches} batches")
     return data_batches
 
 
@@ -51,7 +54,7 @@ def main():
     batch_dir = 'batches'
     os.makedirs(batch_dir)
 
-    batch_size = 10
+    batch_size = 5
     data_batches = divide_data_to_batches(data_path, batch_size)
     for i, batch in enumerate(data_batches):
         batch_id = str(uuid.uuid4())

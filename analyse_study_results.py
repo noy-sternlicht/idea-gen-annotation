@@ -28,17 +28,46 @@ def main():
                 'k': results['k'],
                 'sci_sense': results['sci_sense'],
                 'novelty': results['og'],
-                'specificity': results['specific']
+                'specificity': results['specific'],
+                'interest': results['interest']
             })
 
     baselines_results_df = pd.DataFrame(baselines_results)
     baselines_results_df.to_csv('baselines_results.csv', index=False)
     print('Saved baselines results to baselines_results.csv')
 
-    for criteria in ['sci_sense', 'novelty', 'specificity']:
+    results = []
+    labels = ['Low', 'Med', 'High']
+    mean_scores = {}
+    for criteria in ['sci_sense', 'novelty', 'specificity', 'interest']:
         criteria_results = baselines_results_df[['baseline', criteria]]
-        histogram = criteria_results.pivot_table(index="baseline", columns=criteria, aggfunc="size", fill_value=0)
-        print(histogram)
+        for baseline in criteria_results['baseline'].unique():
+            baseline_results = criteria_results[criteria_results['baseline'] == baseline]
+            histogram = baseline_results[criteria].value_counts().to_dict()
+            for label in labels:
+                if label not in histogram:
+                    histogram[label] = 0
+            results.append({
+                'criteria': criteria,
+                'baseline': baseline,
+                'Low': histogram['Low'],
+                'Med': histogram['Med'],
+                'High': histogram['High']
+            })
+
+            if baseline not in mean_scores:
+                mean_scores[baseline] = {}
+            mean_scores[baseline][criteria] = (histogram['Low'] + 2 * histogram['Med'] + 3 * histogram['High']) / len(
+                baseline_results)
+
+
+    results_df = pd.DataFrame(results)
+    print(results_df)
+    results_df.to_csv('baselines_results_aggregated.csv', index=False)
+
+    mean_scores_df = pd.DataFrame(mean_scores).T.round(2)
+    print(mean_scores_df)
+    mean_scores_df.to_csv('baselines_mean_scores.csv')
 
 
 if __name__ == '__main__':

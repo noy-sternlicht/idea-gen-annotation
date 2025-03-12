@@ -6,7 +6,6 @@ import json
 
 from pyairtable import Api
 
-
 ANNOTATION_BASE_ID = "appkIcAOOsCPyyrmU"
 ANNOTATIONS_TABLE_NAME = "tblx7STGTFWCMhrvg"
 airtable_key_path = "airtable_key"
@@ -51,6 +50,7 @@ def send_to_airtable(df):
                     "sci_sense": row[f'{curr_baseline}_sci_sense'],
                     "og": row[f'{curr_baseline}_og'],
                     "specific": row[f'{curr_baseline}_specific'],
+                    "interest": row[f'{curr_baseline}_interest'],
                 }
             record['baselines_results'] = json.dumps(baselines_results)
             records.append(record)
@@ -153,6 +153,17 @@ if not st.session_state.email_entered:
                     st.warning("⚠️ Please enter a valid email (e.g., user@example.com).")
 
 elif not st.session_state.finished:
+    st.markdown(
+        """
+        <style>
+            .block-container {
+                max-width: 40%;  /* Adjust width as needed */
+                margin: auto;  /* Centers the content */
+            }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     current_example = st.session_state.current_example
     example = st.session_state.data_chunk.iloc[current_example]
 
@@ -170,9 +181,10 @@ elif not st.session_state.finished:
         "2. **A query** asking for a suggestion to help with the context.\n"
         "3. **A list of AI-generated suggestions**.\n\n"
         "For each suggestion, assign a score of **Low** | **Medium** | **High** in the following criteria: \n"
-        "- 🧩 **Scientific Soundness** – Does it make sense scientifically?\n"
-        "- 💡 **Novelty** – Is it an idea you hadn’t considered before?\n"
-        "- 🎯 **Specificity** – Is it clear and actionable?"
+        "- 🧩 **Scientific Soundness** – Is it relevant and scientifically valid?\n"
+        "- 💡 **Novelty** – Is it innovative in relation to existing works?\n"
+        "- 🎯 **Specificity** – Is it well-defined and not overly broad?\n"
+        "- 🤔 **Interest** – Is it engaging or thought-provoking?\n\n"
     )
 
     anchor = example['anchor']
@@ -194,19 +206,26 @@ elif not st.session_state.finished:
             st.markdown(f"**{i}.  {example[baseline].capitalize()}**")
             # st.markdown(f"**{i}.  {example[baseline].capitalize()}** [🐞-{baseline}]")
 
-            cols = st.columns(7)  # Compact layout
+            cols = st.columns(6)  # Compact layout
             annotations[f'{baseline}_sci_sense'] = cols[1].radio(
                 "🧩 **Sound?**", ["Low", "Med", "High"],
                 horizontal=False, key=f'sci_{current_example}_{baseline}'
             )
-            annotations[f'{baseline}_og'] = cols[3].radio(
+            annotations[f'{baseline}_og'] = cols[2].radio(
                 "💡 **Novel?**", ["Low", "Med", "High"],
                 horizontal=False, key=f'og_{current_example}_{baseline}'
             )
-            annotations[f'{baseline}_specific'] = cols[5].radio(
+            annotations[f'{baseline}_specific'] = cols[3].radio(
                 "🎯 **Specific?**", ["Low", "Med", "High"],
                 horizontal=False, key=f'specific_{current_example}_{baseline}'
             )
+
+            annotations[f'{baseline}_interest'] = cols[4].radio(
+                "🤔 **Interesting?**", ["Low", "Med", "High"],
+                horizontal=False, key=f'interest_{current_example}_{baseline}'
+            )
+
+            st.markdown("<hr>", unsafe_allow_html=True)
 
             annotations[f'{baseline}_suggestion'] = example[baseline]
             annotations[f'{baseline}_k'] = str(example['k'])
