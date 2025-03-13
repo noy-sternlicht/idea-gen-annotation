@@ -160,7 +160,7 @@ elif not st.session_state.finished:
         """
         <style>
             .block-container {
-                max-width: 40%;  /* Adjust width as needed */
+                max-width: 45%;  /* Adjust width as needed */
                 margin: auto;  /* Centers the content */
             }
         </style>
