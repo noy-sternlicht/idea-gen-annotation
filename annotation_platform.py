@@ -160,7 +160,7 @@ elif not st.session_state.finished:
         """
         <style>
             .block-container {
-                max-width: 45%;  /* Adjust width as needed */
+                max-width: 40%;  /* Adjust width as needed */
                 margin: auto;  /* Centers the content */
             }
         </style>
@@ -224,7 +224,7 @@ elif not st.session_state.finished:
             )
 
             annotations[f'{baseline}_interest'] = cols[4].radio(
-                "🤔 **Interesting?**", ["Low", "Med", "High"],
+                "🤔 **Interest?**", ["Low", "Med", "High"],
                 horizontal=False, key=f'interest_{current_example}_{baseline}'
             )
 
