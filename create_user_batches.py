@@ -50,12 +50,16 @@ def divide_data_to_batches(data_path, batch_size):
 
 
 def main():
-    data_path = 'human_study_examples.csv'
+    # data_path = 'human_study_examples.csv'
     batch_dir = 'batches'
-    os.makedirs(batch_dir)
+    # os.makedirs(batch_dir)
+    #
+    # batch_size = 5
+    # data_batches = divide_data_to_batches(data_path, batch_size)
 
-    batch_size = 5
-    data_batches = divide_data_to_batches(data_path, batch_size)
+    batch_path = 'batches/toms.csv'
+    data = pd.read_csv(batch_path)
+    data_batches = [data]
     for i, batch in enumerate(data_batches):
         batch_id = str(uuid.uuid4())
         batch_path = os.path.join(batch_dir, f"{batch_id}.csv")

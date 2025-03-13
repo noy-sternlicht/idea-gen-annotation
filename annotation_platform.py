@@ -66,7 +66,10 @@ def send_to_airtable(df):
 
 
 def get_user_data_chunk(user_email):
-    records = batches_table.all(formula="{status} = 'not_started'")
+    if 'tom' in user_email:
+        records = batches_table.all(formula="{batch_id} = '162b21af-9ce9-45be-aef0-450c9cd9d6e0'")
+    else:
+        records = batches_table.all(formula="{status} = 'not_started'")
     if records:
         first_batch = records[0]
         record_id = first_batch['id']
