@@ -1,2 +1,2 @@
 pyairtable
-sort_items
+streamlit_sortables
