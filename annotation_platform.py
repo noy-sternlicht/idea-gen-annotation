@@ -1,8 +1,11 @@
+import os
+
 import streamlit as st
 import pandas as pd
 import random
 import re
 import json
+from streamlit_sortables import sort_items
 
 from pyairtable import Api
 
@@ -14,7 +17,7 @@ API_KEY = open(airtable_key_path, "r").read().strip()
 api = Api(API_KEY)
 annotations_table = api.table(ANNOTATION_BASE_ID, ANNOTATIONS_TABLE_NAME)
 batches_table = api.table('appfwulPjVHbYVUDt', 'tblsK9MqSSVgjzy97')
-baselines = ['random', 'ours', 'gpt-4o', 'sciIE', 'mpnet_zero']
+baselines = ['random', 'ours', 'gpt-4o', 'sciIE', 'mpnet_zero', 'positive']
 
 
 def build_query(anchor_text, relation):
@@ -22,7 +25,7 @@ def build_query(anchor_text, relation):
         query = f"What could we blend with **{anchor_text}** to address the context?"
     else:
         anchor_text = anchor_text.capitalize()
-        query = f"What would be a good source of inspiration for **{anchor_text}**?"
+        query = f"In this context, what would be a good source of inspiration for **{anchor_text}**?"
 
     return query
 
@@ -41,17 +44,20 @@ def send_to_airtable(df):
                 "query": row['query'],
                 "gold": row['gold'],
                 "annotator": row['annotator'],
+                "is_ill_defined": row['is_ill_defined'],
+                "knowledge_level": str(row['knowledge_level']),
             }
-            baselines_results = {}
-            for curr_baseline in baselines:
-                baselines_results[curr_baseline] = {
-                    "suggestion": row[f'{curr_baseline}_suggestion'],
-                    'k': row[f'{curr_baseline}_k'],
-                    "sci_sense": row[f'{curr_baseline}_sci_sense'],
-                    "og": row[f'{curr_baseline}_og'],
-                    "specific": row[f'{curr_baseline}_specific'],
-                    "interest": row[f'{curr_baseline}_interest'],
-                }
+            baselines_results = row['baselines_results']
+            # for baseline, results in row['baselines_results'].items():
+            #     baselines_results[curr_baseline] = {
+            #         "suggestion": row[f'{curr_baseline}_suggestion'],
+            #         'k': row[f'{curr_baseline}_k'],
+            #         'rank': row['baselines_rank'][curr_baseline]
+            # "sci_sense": row[f'{curr_baseline}_sci_sense'],
+            # "og": row[f'{curr_baseline}_og'],
+            # "specific": row[f'{curr_baseline}_specific'],
+            # "interest": row[f'{curr_baseline}_interest'],
+            #     }
             record['baselines_results'] = json.dumps(baselines_results)
             records.append(record)
         annotations_table.batch_create(records)
@@ -66,29 +72,25 @@ def send_to_airtable(df):
 
 
 def get_user_data_chunk(user_email):
-    if 'tom' in user_email:
-        records = batches_table.all(formula="{batch_id} = '162b21af-9ce9-45be-aef0-450c9cd9d6e0'")
-    else:
-        records = batches_table.all(formula="{status} = 'not_started'")
-    if records:
-        first_batch = records[0]
-        record_id = first_batch['id']
-        batch_path = first_batch['fields'].get("file_path")
-        batch_id = first_batch['fields'].get("batch_id")
+    records = batches_table.all(formula="{status} = 'not_started'")
+    records = [record for record in records if record['fields'].get("annotator") == user_email]
+    records = sorted(records, key=lambda x: x['fields']['priority'])
+    for record in records:
+        record_id = record['id']
+        batch_id = record['fields'].get("batch_id")
+        batch_path = record['fields'].get("file_path")
+        if not os.path.exists(batch_path):
+            print(f"Batch {batch_id} file not found.")
+            continue
 
-        batches_table.update(record_id, {
-            "annotator": user_email,
-            "status": "in_progress"
-        })
-
+        batches_table.update(record_id, {"status": "in_progress"})
         print(f"Assigned batch {batch_id} to {user_email}.")
         batch = pd.read_csv(batch_path)
         st.session_state.batch_id = batch_id
         return batch
 
-    else:
-        print("No available batches to assign.")
-        return None
+    print("No available batches to assign.")
+    return None
 
 
 # Initialize session state variables
@@ -156,17 +158,6 @@ if not st.session_state.email_entered:
                     st.warning("⚠️ Please enter a valid email (e.g., user@example.com).")
 
 elif not st.session_state.finished:
-    st.markdown(
-        """
-        <style>
-            .block-container {
-                max-width: 40%;  /* Adjust width as needed */
-                margin: auto;  /* Centers the content */
-            }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
     current_example = st.session_state.current_example
     example = st.session_state.data_chunk.iloc[current_example]
 
@@ -178,17 +169,26 @@ elif not st.session_state.finished:
     st.subheader("Task: Evaluating AI-Generated Ideas", divider="blue")
     st.info(
         "##### ℹ️ Instructions\n\n"
-        "Your goal is to assess the helpfulness of AI-generated suggestions in assisting users with writing paper abstracts.\n\n"
+        "Your goal is to assess how helpful AI-generated suggestions are in helping researchers generate ideas and gain fresh perspectives.\n\n"
         "You will be provided with:\n"
-        "1. **A context** describing a problem, specific settings, goal, etc.\n"
-        "2. **A query** asking for a suggestion to help with the context.\n"
+        "1. **A context** describing the problem, specific settings, goal, etc.\n"
+        "2. **A query** requesting a suggestion relevant to the context.\n"
         "3. **A list of AI-generated suggestions**.\n\n"
-        "For each suggestion, assign a score of **Low** | **Medium** | **High** in the following criteria: \n"
-        "- 🧩 **Scientific Soundness** – Is it relevant and scientifically valid?\n"
-        "- 💡 **Novelty** – Is it innovative in relation to existing works?\n"
-        "- 🎯 **Specificity** – Is it well-defined and not overly broad?\n"
-        "- 🤔 **Interest** – Is it engaging or thought-provoking?\n\n"
+
+        "Rank the suggestions based on their **helpfulness**, considering the following:\n"
+        " - Does it address the query?\n"
+        " - Is it thought provoking and interesting?\n"
+        " - Is it clear and actionable?\n"
     )
+        # " - Is it innovative in relation to existing works?\n\n"
+
+        # "Your task is to rank the suggestions based on their **interest**: how engaging or thought-provoking they are.\n\n"
+        # "For each suggestion, assign a score of **Low** | **Medium** | **High** in the following criteria: \n"
+        # "- 🧩 **Scientific Soundness** – Is it relevant and scientifically valid?\n"
+        # "- 💡 **Novelty** – Is it innovative in relation to existing works?\n"
+        # "- 🎯 **Specificity** – Is it well-defined and not overly broad?\n"
+        # "- 🤔 **Interest** – Is it engaging or thought-provoking?\n\n"
+    # )
 
     anchor = example['anchor']
     relation = example['relation']
@@ -196,52 +196,146 @@ elif not st.session_state.finished:
     query_text = build_query(anchor, relation)
 
     with st.form(key=f'form_{current_example}'):
+
         st.markdown('##### Context')
         st.markdown(f"{context[0].capitalize() + context[1:]}")
         st.markdown("##### Query")
         st.markdown(f"{query_text[0].capitalize() + query_text[1:]}")
         st.markdown('##### Suggestions')
-        annotations = {'context': context, 'query': query_text,
-                       'gold': example['positive'],
-                       'annotator': st.session_state.user_email,
-                       'id': example['id']}
+
+        suggestions = []
         for i, baseline in enumerate(baselines, start=1):
-            st.markdown(f"**{i}.  {example[baseline].capitalize()}**")
-            # st.markdown(f"**{i}.  {example[baseline].capitalize()}** [🐞-{baseline}]")
+            suggestion = example[baseline]
+            suggestions.append(f'{example[baseline].capitalize()}')
+            # suggestions.append(f'{example[baseline].capitalize()}||--[{baseline}]')
 
-            cols = st.columns(6)  # Compact layout
-            annotations[f'{baseline}_sci_sense'] = cols[1].radio(
-                "🧩 **Sound?**", ["Low", "Med", "High"],
-                horizontal=False, key=f'sci_{current_example}_{baseline}'
-            )
-            annotations[f'{baseline}_og'] = cols[2].radio(
-                "💡 **Novel?**", ["Low", "Med", "High"],
-                horizontal=False, key=f'og_{current_example}_{baseline}'
-            )
-            annotations[f'{baseline}_specific'] = cols[3].radio(
-                "🎯 **Specific?**", ["Low", "Med", "High"],
-                horizontal=False, key=f'specific_{current_example}_{baseline}'
-            )
+        custom_css = """
 
-            annotations[f'{baseline}_interest'] = cols[4].radio(
-                "🤔 **Interest?**", ["Low", "Med", "High"],
-                horizontal=False, key=f'interest_{current_example}_{baseline}'
-            )
+        .sortable-container {
+            border: 1px dashed #ccc;
+            padding: 10px;
+            border-radius: 10px;
+        }
+        
+        .sortable-item {
+            # padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.1);
+            margin: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+            cursor: grab;
+            color: black;  /* Ensures text is visible */
+            # transition: background-color 0.3s ease;  /* Smooth transition */
+        }
+        """
 
-            st.markdown("<hr>", unsafe_allow_html=True)
+        ranked_suggestions = sort_items(suggestions, direction='vertical', custom_style=custom_css)
 
-            annotations[f'{baseline}_suggestion'] = example[baseline]
-            annotations[f'{baseline}_k'] = str(example['k'])
+        st.divider()
 
-        submitted = st.form_submit_button("Submit & Proceed ➡️")
+        st.markdown('**Is the query ill-defined?**')
+        st.markdown(
+            "Mark this option if the query does not make sense. Afterwards, you can submit the form as is, we'll ignore your answer.")
+        is_ill_defined = st.toggle(label="**The query is ill-defined**")
+
+        st.divider()
+
+        st.markdown('**How knowledgeable are you in this area?**')
+        st.markdown("**1** - Nothing beyond general knowledge, this isn't my area of expertise.")
+        st.markdown("**5** - Extremely knowledgeable, deeply familiar with this area.")
+        knowledge_level = st.slider(
+            label="knowledge_level",
+            label_visibility="collapsed",
+            min_value=1, max_value=5, value=3, step=1,
+            help="**1** - No specific knowledge beyond the general domain. \n"
+                 "**5** - Extremely knowledgeable, deeply familiar with this area."
+        )
+
+        st.divider()
+
+        columns = st.columns([4, 1, 2])
+        with columns[2]:
+            submitted = st.form_submit_button("Submit & Proceed ➡️")
+        baselines_results = {}
+        for baseline in baselines:
+            # ranked_suggestions = [suggestion.split('||')[0] for suggestion in ranked_suggestions]
+            rank = ranked_suggestions.index(example[baseline].capitalize()) + 1
+            baselines_results[baseline] = {
+                'suggestion': example[baseline],
+                'k': str(example['k']),
+                'rank': rank
+            }
+
         if submitted:
+            annotations = {
+                "id": example["id"],
+                "annotator": st.session_state.get("user_email", "anonymous"),
+                'context': context,
+                'query': query_text,
+                'gold': example['positive'],
+                'is_ill_defined': is_ill_defined,
+                'knowledge_level': knowledge_level,
+                "baselines_results": baselines_results
+            }
+
             st.session_state.annotations.append(annotations)
             st.session_state.current_example += 1 if current_example < len(st.session_state.data_chunk) - 1 else 0
             st.session_state.finished = current_example >= len(st.session_state.data_chunk) - 1
             st.rerun()
 
-    st.progress((current_example + 1) / len(st.session_state.data_chunk))
-    st.markdown(f"Task {current_example + 1} of {len(st.session_state.data_chunk)}")
+        st.progress((current_example + 1) / len(st.session_state.data_chunk))
+        st.markdown(f"Task {current_example + 1} of {len(st.session_state.data_chunk)}")
+
+    #     st.markdown('##### Context')
+    #     st.markdown(f"{context[0].capitalize() + context[1:]}")
+    #     st.markdown("##### Query")
+    #     st.markdown(f"{query_text[0].capitalize() + query_text[1:]}")
+    #     st.markdown('##### Suggestions')
+    #     annotations = {'context': context, 'query': query_text,
+    #                    'gold': example['positive'],
+    #                    'annotator': st.session_state.user_email,
+    #                    'id': example['id']}
+    #     for i, baseline in enumerate(baselines, start=1):
+    #         st.markdown(f"**{i}.  {example[baseline].capitalize()}**")
+    #         # st.markdown(f"**{i}.  {example[baseline].capitalize()}** [🐞-{baseline}]")
+    #
+    #         cols = st.columns(6)  # Compact layout
+    #         annotations[f'{baseline}_sci_sense'] = cols[1].radio(
+    #             "🧩 **Sound?**", ["Low", "Med", "High"],
+    #             horizontal=False, key=f'sci_{current_example}_{baseline}'
+    #         )
+    #         annotations[f'{baseline}_og'] = cols[2].radio(
+    #             "💡 **Novel?**", ["Low", "Med", "High"],
+    #             horizontal=False, key=f'og_{current_example}_{baseline}'
+    #         )
+    #         annotations[f'{baseline}_specific'] = cols[3].radio(
+    #             "🎯 **Specific?**", ["Low", "Med", "High"],
+    #             horizontal=False, key=f'specific_{current_example}_{baseline}'
+    #         )
+    #
+    #         annotations[f'{baseline}_interest'] = cols[4].radio(
+    #             "🤔 **Interest?**", ["Low", "Med", "High"],
+    #             horizontal=False, key=f'interest_{current_example}_{baseline}'
+    #         )
+    #
+    #         st.markdown("<hr>", unsafe_allow_html=True)
+    #
+    #         annotations[f'{baseline}_suggestion'] = example[baseline]
+    #         annotations[f'{baseline}_k'] = str(example['k'])
+    #
+    #     submitted = st.form_submit_button("Submit & Proceed ➡️")
+    #     if submitted:
+    #         st.session_state.annotations.append(annotations)
+    #         st.session_state.current_example += 1 if current_example < len(st.session_state.data_chunk) - 1 else 0
+    #         st.session_state.finished = current_example >= len(st.session_state.data_chunk) - 1
+    #         st.rerun()
+    #
+    # st.progress((current_example + 1) / len(st.session_state.data_chunk))
+    # st.markdown(f"Task {current_example + 1} of {len(st.session_state.data_chunk)}")
 
 else:
     st.markdown("<h2 style='text-align: center;'>🎉 You have completed all your tasks! 🎉</h2>", unsafe_allow_html=True)
