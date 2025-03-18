@@ -3,3 +3,6 @@ batches
 .DS_Store
 human_study_examples.csv
 baselines_results.csv
+baselines_mean_scores.csv
+baselines_results_aggregated.csv
+baselines_results_summary.csv
