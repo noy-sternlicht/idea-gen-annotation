@@ -100,7 +100,7 @@ def divide_data_to_batches(data_path, batch_size):
 
 
 def main():
-    batch_dir = 'batches1'
+    batch_dir = 'batches'
     if os.path.exists(batch_dir):
         shutil.rmtree(batch_dir)
 

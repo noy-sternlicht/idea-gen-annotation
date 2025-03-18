@@ -1,7 +1,7 @@
 baseline,meanRank,meanRankNorm,medianRank,medianRankNorm
-gpt-4o,3.24,1.79,3.0,1.6
-mpnet_zero,3.67,2.12,4.0,1.8
-ours,2.33,1.35,2.0,1.2
-positive,2.71,1.5,2.0,1.2
-random,5.0,2.84,6.0,3.0
-sciIE,4.05,2.39,5.0,2.0
+gpt-4o,2.94,1.42,3.0,1.33
+mpnet_zero,3.74,1.87,4.0,2.0
+ours,2.52,1.23,2.0,1.0
+positive,2.45,1.2,2.0,1.0
+random,5.29,2.62,6.0,3.0
+sciIE,4.06,2.04,4.0,2.0
