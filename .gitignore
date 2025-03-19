@@ -6,3 +6,4 @@ baselines_results.csv
 baselines_mean_scores.csv
 baselines_results_aggregated.csv
 baselines_results_summary.csv
+users_expertise.json

@@ -7,6 +7,8 @@ from pyairtable import Api
 from sentence_transformers import SentenceTransformer
 from sentence_transformers import util
 
+
+print('Loading data tables')
 airtable_key_path = "airtable_key"
 AIRTABLE_API_KEY = open(airtable_key_path, "r").read().strip()
 
@@ -16,10 +18,11 @@ annotations_table = api.table("appkIcAOOsCPyyrmU", "tblx7STGTFWCMhrvg")
 
 DATA_PATH = 'human_study_examples.csv'
 USERS_EXPERTISE = 'users_expertise.json'
-BATCH_SIZE = 5
+BATCH_SIZE = 20
 
 baselines = ['random', 'ours', 'gpt-4o', 'sciIE', 'mpnet_zero', 'positive']
 
+print('Loading model')
 model = SentenceTransformer("ibm-granite/granite-embedding-125m-english").to('cuda')
 
 
@@ -29,6 +32,7 @@ def filter_out_bad_examples(data):
 
 
 def divide_data_to_batches(data_path, batch_size):
+    print(f"Loading data from {data_path}")
     data = pd.read_csv(data_path)
     print(f"Loaded {len(data)} examples")
 
@@ -72,8 +76,12 @@ def divide_data_to_batches(data_path, batch_size):
     for user, user_info in users_expertise.items():
         for i in range(user_info['nr_batches']):
             print(f"User {user} batch {i + 1}/{user_info['nr_batches']}")
+            # user_data = data[data['arxiv_categories'].apply(
+            #     lambda x: all(category in user_info['arxiv_categories'] for category in x))]
             user_data = data[data['arxiv_categories'].apply(
-                lambda x: all(category in user_info['arxiv_categories'] for category in x))]
+                lambda x: any(category in user_info['arxiv_categories'] for category in x))]
+
+            # user_data = data
 
             user_data = user_data[~user_data['id'].isin(used_data)]
 
@@ -110,12 +118,8 @@ def divide_data_to_batches(data_path, batch_size):
 
 
 def main():
-    # batch_dir = 'batches'
-    # if not os.path.exists(batch_dir):
-    #     os.makedirs(batch_dir)
-
+    print('Creating user batches')
     data_batches = divide_data_to_batches(DATA_PATH, BATCH_SIZE)
-
     batches_records = batches_table.all()
 
     for user, batches in data_batches.items():
@@ -124,9 +128,6 @@ def main():
         highest_priority = max(highest_priority) if highest_priority else -1
         for i, batch in enumerate(batches):
             batch_id = str(uuid.uuid4())
-            # batch_path = os.path.join(batch_dir, f"{batch_id}.csv")
-            # batch.to_csv(batch_path, index=False)
-            # print(f"Saved batch {i} to {batch_path}")
 
             batches_table.create({
                 "priority": str(highest_priority + i + 1),
