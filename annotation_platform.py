@@ -9,13 +9,11 @@ from streamlit_sortables import sort_items
 
 from pyairtable import Api
 
-ANNOTATION_BASE_ID = "appkIcAOOsCPyyrmU"
-ANNOTATIONS_TABLE_NAME = "tblx7STGTFWCMhrvg"
 airtable_key_path = "airtable_key"
 API_KEY = open(airtable_key_path, "r").read().strip()
 
 api = Api(API_KEY)
-annotations_table = api.table(ANNOTATION_BASE_ID, ANNOTATIONS_TABLE_NAME)
+annotations_table = api.table("appkIcAOOsCPyyrmU", "tblx7STGTFWCMhrvg")
 batches_table = api.table('appfwulPjVHbYVUDt', 'tblsK9MqSSVgjzy97')
 baselines = ['random', 'ours', 'gpt-4o', 'sciIE', 'mpnet_zero', 'positive']
 
@@ -68,15 +66,11 @@ def get_user_data_chunk(user_email):
     for record in records:
         record_id = record['id']
         batch_id = record['fields'].get("batch_id")
-        batch_path = record['fields'].get("file_path")
-        if not os.path.exists(batch_path):
-            print(f"Batch {batch_id} file not found.")
-            continue
-
         batches_table.update(record_id, {"status": "in_progress"})
-        print(f"Assigned batch {batch_id} to {user_email}.")
-        batch = pd.read_csv(batch_path)
+        batch = record['fields'].get("data")
+        batch = pd.DataFrame(json.loads(batch))
         st.session_state.batch_id = batch_id
+        print(f"Assigned batch {batch_id} to {user_email}.")
         return batch
 
     print("No available batches to assign.")

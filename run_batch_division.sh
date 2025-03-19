@@ -1,6 +1,7 @@
 #!/bin/bash -x
 #SBATCH --time=168:00:00
-#SBATCH --gres=gpu:1,vmem:45g
+#SBATCH --nodelist firefoot-04
+#SBATCH --gres=gpu:l40s
 #SBATCH --mem-per-cpu=20g
 #SBATCH --mail-user=noy.sternlicht@mail.huji.ac.il
 #SBATCH --mail-type=ALL
@@ -20,9 +21,6 @@ set_env_vars() {
 
   HF_HOME=$PWD/.hf_home
   export HF_HOME
-
-  CUDA_VISIBLE_DEVICES=7
-  export CUDA_VISIBLE_DEVICES
 }
 
 activate

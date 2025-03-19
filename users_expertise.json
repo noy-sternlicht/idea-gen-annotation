@@ -4,14 +4,16 @@
       "arxiv_categories": [
         "cs.cl"
       ],
-      "research_areas": "ideation, LLM as a judge, hypothesis generation, helping researchers by using AI tools, information extraction, science for science, retrieval augmented generation, knowledge graphs"
+      "research_areas": "ideation, LLM as a judge, hypothesis generation, helping researchers by using AI tools, information extraction, science for science, retrieval augmented generation, knowledge graphs",
+      "nr_batches": 1
     },
     "noystll@mail.huji.ac.il": {
       "arxiv_categories": [
         "cs.cl",
         "cs.ai"
       ],
-      "research_areas": "multi-document-summarization, synthetic data generation, generative models, agentic models"
+      "research_areas": "multi-document-summarization, synthetic data generation, generative models, agentic models",
+      "nr_batches": 0
     }
   }
 }
