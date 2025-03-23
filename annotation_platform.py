@@ -60,7 +60,8 @@ def send_to_airtable(df):
 
 
 def get_user_data_chunk(user_email):
-    records = batches_table.all(formula="{status} = 'not_started'")
+    records = batches_table.all()
+    records = [record for record in records if record['fields'].get("status") in ["not_started", "in_progress"]]
     records = [record for record in records if record['fields'].get("annotator") == user_email]
     records = sorted(records, key=lambda x: int(x['fields']['priority']))
     for record in records:
