@@ -15,22 +15,28 @@ def main():
 
     baselines_results = []
 
-
     support = 0
 
     for record in records:
         record_baselines_results = json.loads(record['fields']['baselines_results'])
+        if 'noy' in record['fields']['annotator']:
+            continue
+
         is_ill_defined = 'is_ill_defined' in record['fields']
         if not is_ill_defined:
             support += 1
 
         knowledge_level = record['fields']['knowledge_level']
 
+        ranked_baselines = ["", "", "", "", "", ""]
+
+
         for baseline, results in record_baselines_results.items():
             baselines_results.append({
                 'example_id': record['fields']['example_id'],
                 'annotator': record['fields']['annotator'],
                 'context': record['fields']['context'],
+                'query': record['fields']['query'],
                 'gold': record['fields']['gold'],
                 'baseline': baseline,
                 'suggestion': results['suggestion'],
@@ -41,8 +47,20 @@ def main():
                 'normalized_rank': (1/6) * float(knowledge_level) * float(results['rank'])
             })
 
+            ranked_baselines[results['rank'] - 1] = baseline
+
+        if not is_ill_defined and ranked_baselines[0] != 'ours':
+            print(f"--------{record['fields']['example_id']}----------")
+            print(f"Context: {record['fields']['context']}")
+            print(f'Question: {record["fields"]["query"]}')
+            print('----')
+            for i, baseline in enumerate(ranked_baselines):
+                print(f'{i+1}. {baseline}: {record_baselines_results[baseline]["suggestion"]}')
+
+
     baselines_results_df = pd.DataFrame(baselines_results)
     baselines_results_df = baselines_results_df[~baselines_results_df['is_ill_defined']]
+
     baselines_results_df.to_csv('baselines_results.csv', index=False)
     print('Saved baselines results to baselines_results.csv')
 
