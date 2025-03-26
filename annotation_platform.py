@@ -1,4 +1,5 @@
 import os
+import time
 
 import streamlit as st
 import pandas as pd
@@ -134,11 +135,18 @@ if not st.session_state.email_entered:
 
                     # Fetch user-specific data
                     st.session_state.data_chunk = get_user_data_chunk(email)
-                    if st.session_state.data_chunk.empty or st.session_state.data_chunk is None:
-                        st.warning("⚠️ No tasks available. Please contact the study organizer.")
-
-                    st.success(f"✅ Welcome, {username}! Redirecting you now...")
-                    st.rerun()
+                    if st.session_state.data_chunk is None or st.session_state.data_chunk.empty:
+                        st.warning("⚠️ You've finished all your tasks. Please contact the study coordinator (Noy) if that's a problem.")
+                        st.session_state.email_entered = False
+                        st.session_state.user_email = ""
+                        st.session_state.user_name = ""
+                        st.markdown("<br>", unsafe_allow_html=True)  # Add some spacing
+                        st.markdown("Redirecting back to login...")
+                        time.sleep(3)  # Give time to see the message
+                        st.rerun()
+                    else:
+                        st.success(f"✅ Welcome, {username}! Redirecting you now...")
+                        st.rerun()
                 else:
                     st.warning("⚠️ Please enter a valid email (e.g., user@example.com).")
 
