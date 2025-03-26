@@ -161,7 +161,8 @@ elif not st.session_state.finished:
         baselines = st.session_state.shuffled_baselines[current_example]
     st.subheader("Task: Evaluating AI-Generated Ideas", divider="blue")
     st.info(
-        "##### ℹ️ Instructions\n\n"
+        "##### ℹ️ Guidelines\n\n"
+        "###### Please read the guidelines carefully before you start.\n\n"
         "Your goal is to assess how helpful AI-generated suggestions are in helping researchers generate interesting ideas and gain fresh perspectives.\n\n"
         "You will be provided with:\n"
         "1. **A context** describing the problem, specific settings, goal, etc.\n"
@@ -172,6 +173,43 @@ elif not st.session_state.finished:
         " - Does it address the query and fit the context?\n"
         " - Is it clear and actionable?\n\n"
     )
+
+    # Example Section
+    with st.expander("📝 **Toy Example**", expanded=False):
+        st.markdown("""
+        **Context**\n
+        Recent advancements in video generation have struggled to model complex narratives and maintain character consistency.
+
+        **Query**\n
+        In this context, what would be a good source of inspiration for **video generation**?
+
+        **Suggestions**\n
+        * The human brain
+        * Movie production techniques, which breaks a complex narrative into a series of scenes
+        * Image generation models
+        * Probabilistic graphs 
+
+        **Ranking**\n
+        I would rank the suggestions as follows:
+        1. Movie production techniques, which breaks a complex narrative into a series of scenes _(interesting, fits the query, clear and actionable)_
+        2. The human brain _(interesting, however, this is more vague and less actionable)_
+        3. Image generation models _(perhaps similar works might provide some insights to the problem, but this it's a very interesting suggestion)_
+        4. Probabilistic graphs _(interesting, but it's not clear how it relates to the query)_
+        """)
+
+    # FAQ Section
+    with st.expander("📚 **Frequently Asked Questions**", expanded=False):
+        st.markdown("""
+        ###### Q: The instructions are not clear.
+        A: Talk with Noy, she'll help you understand the task better.
+
+        ###### Q: Some suggestions are really bad, what should I do with them?
+        A: That's okay, we're comparing multiple baselines, some of them are relatively weak. We're interested in the relative performance of the baselines, so if you think a suggestion is particularly bad, put it in a lower position.
+        
+        ###### Q: I don't understand the context or the meaning of some of the suggestions.
+        A: If that's something small (like a particular term you're unfamiliar with), google it. Make sure your knowledge 
+                    level reflects your actual understanding of the example.
+        """)
 
     anchor = example['anchor']
     relation = example['relation']
@@ -185,6 +223,7 @@ elif not st.session_state.finished:
         st.markdown("##### Query")
         st.markdown(f"{query_text[0].capitalize() + query_text[1:]}")
         st.markdown('##### Suggestions')
+        st.markdown("**Drag and drop the suggestions to rank them according to the guidelines.**")
 
         suggestions = []
         for i, baseline in enumerate(baselines, start=1):
