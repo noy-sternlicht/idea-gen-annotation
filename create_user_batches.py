@@ -27,8 +27,8 @@ model = SentenceTransformer("ibm-granite/granite-embedding-125m-english").to('cu
 
 
 def filter_out_bad_examples(data):
-    prefixes = ["The study"]
-    return data[~data['context'].apply(lambda x: any(x.startswith(prefix) for prefix in prefixes))]
+    prefixes = ["The study", "The abstract"]
+    return data[~data['context'].apply(lambda x: any(x.lower().startswith(prefix.lower()) for prefix in prefixes))]
 
 
 def divide_data_to_batches(data_path, batch_size):
