@@ -193,7 +193,7 @@ elif not st.session_state.finished:
         I would rank the suggestions as follows:
         1. Movie production techniques, which breaks a complex narrative into a series of scenes _(interesting, fits the query, clear and actionable)_
         2. The human brain _(interesting, however, this is more vague and less actionable)_
-        3. Image generation models _(perhaps similar works might provide some insights to the problem, but this it's a very interesting suggestion)_
+        3. Image generation models _(perhaps similar works might provide some insights to the problem, but this isn't a very interesting suggestion)_
         4. Probabilistic graphs _(interesting, but it's not clear how it relates to the query)_
         """)
 
